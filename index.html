@@ -69,21 +69,35 @@
             </div>
         </main>
         
-        <!-- 游戏记录页面 -->
+        <!-- 游戏记录页面 - 修改后的布局 -->
         <main id="game-record-page" class="page">
             <h2>游戏记录</h2>
             <div class="game-info">
-                <p>局数: <span id="round-count">0</span></p>
+                <p>当前局数: <span id="round-count">0</span></p>
             </div>
             
-            <div class="game-record">
-                <div class="player-scores" id="player-scores-container">
-                    <!-- 玩家得分输入会在这里动态生成 -->
+            <!-- 新的横向玩家头部 -->
+            <div class="players-header" id="players-header">
+                <!-- 玩家头像和名称会动态生成在这里 -->
+            </div>
+            
+            <!-- 新的输入区域 -->
+            <div class="current-round">
+                <div class="round-number">第 <span id="current-round-number">1</span> 局</div>
+                <div class="player-inputs" id="player-inputs-container">
+                    <!-- 玩家输入框会动态生成在这里 -->
                 </div>
-                
-                <div class="actions">
-                    <button id="check-current-scores-btn" class="btn secondary">看看谁赢了</button>
+                <div class="round-actions">
                     <button id="next-round-btn" class="btn primary">确认本局</button>
+                    <button id="check-current-scores-btn" class="btn secondary">看看谁赢了</button>
+                </div>
+            </div>
+            
+            <!-- 历史记录滚动区域 -->
+            <div class="rounds-history" id="rounds-history">
+                <h3>历史记录</h3>
+                <div class="rounds-container" id="rounds-container">
+                    <!-- 历史记录会动态生成在这里 -->
                 </div>
             </div>
             

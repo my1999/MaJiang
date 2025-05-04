@@ -270,7 +270,13 @@ const UIManager = {
             
             if (isValid) {
                 GameManager.addRound(scores);
+                
+                // 更新游戏记录页面
                 document.getElementById('round-count').textContent = GameManager.currentGame.rounds.length;
+                document.getElementById('current-round-number').textContent = GameManager.currentGame.rounds.length + 1;
+                
+                // 更新历史记录
+                this.renderRoundsHistory();
             }
         });
         
@@ -365,25 +371,105 @@ const UIManager = {
         
         // 更新局数
         document.getElementById('round-count').textContent = GameManager.currentGame.rounds.length;
+        document.getElementById('current-round-number').textContent = GameManager.currentGame.rounds.length + 1;
         
-        // 渲染玩家得分输入区域
-        const container = document.getElementById('player-scores-container');
-        container.innerHTML = '';
+        // 渲染玩家头部
+        this.renderPlayersHeader();
         
+        // 渲染当前局的输入区域
+        this.renderPlayerInputs();
+        
+        // 渲染历史记录
+        this.renderRoundsHistory();
+    },
+    
+    renderPlayersHeader: function() {
+        const headerContainer = document.getElementById('players-header');
+        headerContainer.innerHTML = '';
+        
+        // 添加每个玩家的头像和名字
         GameManager.currentGame.playerIds.forEach(playerId => {
             const player = PlayerManager.getPlayerById(playerId);
             if (!player) return;
             
-            const playerScoreElement = document.createElement('div');
-            playerScoreElement.className = 'player-score';
-            
-            playerScoreElement.innerHTML = `
-                <div class="avatar">${getAvatarEmoji(player.avatarId)}</div>
+            const playerColumn = document.createElement('div');
+            playerColumn.className = 'player-column';
+            playerColumn.innerHTML = `
+                <div class="player-avatar">${getAvatarEmoji(player.avatarId)}</div>
                 <div class="player-name">${player.name}</div>
+            `;
+            
+            headerContainer.appendChild(playerColumn);
+        });
+    },
+    
+    renderPlayerInputs: function() {
+        const inputsContainer = document.getElementById('player-inputs-container');
+        inputsContainer.innerHTML = '';
+        
+        // 添加每个玩家的输入框
+        GameManager.currentGame.playerIds.forEach(playerId => {
+            const player = PlayerManager.getPlayerById(playerId);
+            if (!player) return;
+            
+            const playerInput = document.createElement('div');
+            playerInput.className = 'player-input';
+            playerInput.innerHTML = `
                 <input type="number" id="score-${player.id}" class="score-input" placeholder="0" value="0" min="-1000" max="1000">
             `;
             
-            container.appendChild(playerScoreElement);
+            inputsContainer.appendChild(playerInput);
+        });
+    },
+    
+    renderRoundsHistory: function() {
+        const historyContainer = document.getElementById('rounds-container');
+        historyContainer.innerHTML = '';
+        
+        // 如果没有历史记录，显示提示
+        if (GameManager.currentGame.rounds.length === 0) {
+            historyContainer.innerHTML = '<p class="text-center">暂无历史记录</p>';
+            return;
+        }
+        
+        // 按局数倒序显示所有历史记录（最新的在上面）
+        const rounds = [...GameManager.currentGame.rounds].reverse();
+        
+        rounds.forEach((round, index) => {
+            const roundNumber = GameManager.currentGame.rounds.length - index;
+            const roundRecord = document.createElement('div');
+            roundRecord.className = 'round-record';
+            
+            // 创建局数标题
+            const roundHeader = document.createElement('div');
+            roundHeader.className = 'round-header';
+            roundHeader.textContent = `第 ${roundNumber} 局`;
+            
+            // 创建分数容器
+            const roundScores = document.createElement('div');
+            roundScores.className = 'round-scores';
+            
+            // 添加每个玩家的分数
+            GameManager.currentGame.playerIds.forEach(playerId => {
+                const player = PlayerManager.getPlayerById(playerId);
+                if (!player) return;
+                
+                const score = round.scores[playerId] || 0;
+                const scoreClass = score >= 0 ? 'positive' : 'negative';
+                
+                const playerScore = document.createElement('div');
+                playerScore.className = 'player-score-record';
+                playerScore.innerHTML = `
+                    <div class="score-value ${scoreClass}">${score >= 0 ? '+' : ''}${score}</div>
+                `;
+                
+                roundScores.appendChild(playerScore);
+            });
+            
+            // 组合所有元素
+            roundRecord.appendChild(roundHeader);
+            roundRecord.appendChild(roundScores);
+            historyContainer.appendChild(roundRecord);
         });
     },
     
