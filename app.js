@@ -58,15 +58,24 @@ const PlayerManager = {
     },
     
     updatePlayerStats: function(playerId, amount) {
-        const player = this.players.find(p => p.id === playerId);
+        // 确保ID作为数字处理
+        const numericId = parseInt(playerId);
+        const player = this.players.find(p => p.id === numericId);
         if (player) {
-            player.totalWinnings += amount;
+            // 确保金额是数字
+            const numericAmount = typeof amount === 'number' ? amount : parseInt(amount) || 0;
+            player.totalWinnings += numericAmount;
+            console.log(`更新玩家${player.name}(ID:${numericId})的输赢记录：${numericAmount}，总计：${player.totalWinnings}`);
             this.savePlayers();
+        } else {
+            console.error(`找不到ID为${numericId}的玩家`);
         }
     },
     
     getPlayerById: function(id) {
-        return this.players.find(player => player.id === id);
+        // 确保id作为数字进行比较
+        const numericId = parseInt(id);
+        return this.players.find(player => player.id === numericId);
     }
 };
 
@@ -120,8 +129,12 @@ const GameManager = {
         
         // 更新玩家统计数据
         const totals = this.calculateGameTotals(this.currentGame);
+        console.log('结束游戏时计算的总分:', totals);
+        
         Object.keys(totals).forEach(playerId => {
-            PlayerManager.updatePlayerStats(parseInt(playerId), totals[playerId]);
+            const amount = totals[playerId];
+            console.log(`为玩家${playerId}更新统计数据:`, amount);
+            PlayerManager.updatePlayerStats(playerId, amount);
         });
         
         this.saveGames();
@@ -143,6 +156,11 @@ const GameManager = {
     },
     
     calculateGameTotals: function(game) {
+        if (!game || !game.rounds || !game.playerIds) {
+            console.error('计算游戏总分时发生错误：游戏数据无效', game);
+            return {};
+        }
+        
         const totals = {};
         
         // 初始化所有玩家的总额为0
@@ -150,13 +168,29 @@ const GameManager = {
             totals[id] = 0;
         });
         
+        // 调试信息
+        console.log('计算总分 - 游戏轮数:', game.rounds.length);
+        
         // 计算每一轮的得分并加到总额中
-        game.rounds.forEach(round => {
+        game.rounds.forEach((round, index) => {
+            if (!round.scores) {
+                console.error(`第${index+1}轮得分数据无效`, round);
+                return;
+            }
+            
+            console.log(`第${index+1}轮得分:`, round.scores);
+            
             Object.keys(round.scores).forEach(playerId => {
-                totals[playerId] += parseInt(round.scores[playerId]) || 0;
+                const score = round.scores[playerId];
+                // 确保score是数字
+                const numericScore = typeof score === 'number' ? score : parseInt(score) || 0;
+                totals[playerId] = (totals[playerId] || 0) + numericScore;
+                
+                console.log(`玩家${playerId}在第${index+1}轮的得分: ${numericScore}, 累计总分: ${totals[playerId]}`);
             });
         });
         
+        console.log('最终计算的总分:', totals);
         return totals;
     }
 };
@@ -256,10 +290,22 @@ const UIManager = {
             // 获取所有玩家的得分
             GameManager.currentGame.playerIds.forEach(playerId => {
                 const scoreInput = document.getElementById(`score-${playerId}`);
-                const score = parseInt(scoreInput.value) || 0;
-                scores[playerId] = score;
-                total += score;
-                scoreInput.value = '0'; // 重置输入框
+                if (!scoreInput) {
+                    console.error(`找不到玩家 ${playerId} 的得分输入框`);
+                    isValid = false;
+                    return;
+                }
+                
+                // 确保输入值被正确解析为整数
+                const scoreValue = scoreInput.value.trim();
+                const score = parseInt(scoreValue);
+                
+                // 将得分添加到scores对象，确保即使为0也正确保存
+                scores[playerId] = isNaN(score) ? 0 : score;
+                total += scores[playerId];
+                
+                // 重置输入框为0
+                scoreInput.value = '0';
             });
             
             // 检查总和是否为0
@@ -269,6 +315,10 @@ const UIManager = {
             }
             
             if (isValid) {
+                // 输出调试信息
+                console.log('添加新一轮得分:', scores);
+                
+                // 添加新一轮
                 GameManager.addRound(scores);
                 
                 // 更新游戏记录页面
@@ -427,16 +477,21 @@ const UIManager = {
         historyContainer.innerHTML = '';
         
         // 如果没有历史记录，显示提示
-        if (GameManager.currentGame.rounds.length === 0) {
+        if (!GameManager.currentGame || !GameManager.currentGame.rounds || GameManager.currentGame.rounds.length === 0) {
             historyContainer.innerHTML = '<p class="text-center">暂无历史记录</p>';
             return;
         }
+        
+        // 调试信息
+        console.log('渲染历史记录，当前共有回合:', GameManager.currentGame.rounds.length);
         
         // 按局数倒序显示所有历史记录（最新的在上面）
         const rounds = [...GameManager.currentGame.rounds].reverse();
         
         rounds.forEach((round, index) => {
             const roundNumber = GameManager.currentGame.rounds.length - index;
+            console.log(`渲染第${roundNumber}局记录:`, round);
+            
             const roundRecord = document.createElement('div');
             roundRecord.className = 'round-record';
             
@@ -452,9 +507,17 @@ const UIManager = {
             // 添加每个玩家的分数
             GameManager.currentGame.playerIds.forEach(playerId => {
                 const player = PlayerManager.getPlayerById(playerId);
-                if (!player) return;
+                if (!player) {
+                    console.error(`找不到ID为${playerId}的玩家`);
+                    return;
+                }
                 
-                const score = round.scores[playerId] || 0;
+                // 确保得分是数字
+                const scoreValue = round.scores[playerId];
+                const score = typeof scoreValue === 'number' ? scoreValue : (parseInt(scoreValue) || 0);
+                
+                console.log(`玩家${player.name}(ID:${playerId})在第${roundNumber}局的得分:`, score);
+                
                 const scoreClass = score >= 0 ? 'positive' : 'negative';
                 
                 const playerScore = document.createElement('div');
@@ -479,8 +542,12 @@ const UIManager = {
         const scoresContainer = document.getElementById('current-scores-container');
         scoresContainer.innerHTML = '';
         
+        // 调试输出游戏数据
+        console.log('当前游戏数据:', GameManager.currentGame);
+        
         // 计算当前总分
         const totals = GameManager.calculateGameTotals(GameManager.currentGame);
+        console.log('计算的总分:', totals);
         
         // 根据总分排序玩家（从高到低）
         const sortedPlayerIds = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
@@ -490,16 +557,17 @@ const UIManager = {
             const player = PlayerManager.getPlayerById(parseInt(playerId));
             if (!player) return;
             
+            const score = totals[playerId];
             const playerTotal = document.createElement('div');
-            playerTotal.className = 'player-total ' + (totals[playerId] >= 0 ? 'positive' : 'negative');
+            playerTotal.className = 'player-total ' + (score >= 0 ? 'positive' : 'negative');
             
             playerTotal.innerHTML = `
                 <div class="player-info">
                     <div class="player-avatar">${getAvatarEmoji(player.avatarId)}</div>
                     <div class="player-name">${player.name}</div>
                 </div>
-                <div class="player-winnings ${totals[playerId] >= 0 ? 'positive-amount' : 'negative-amount'}">
-                    ${totals[playerId] >= 0 ? '+' : ''}${totals[playerId]} 元
+                <div class="player-winnings ${score >= 0 ? 'positive-amount' : 'negative-amount'}">
+                    ${score >= 0 ? '+' : ''}${score} 元
                 </div>
             `;
             
