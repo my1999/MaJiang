@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麻将记账</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4CAF50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="麻将记账">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>麻将记账助手</h1>
+        </header>
+        
+        <!-- 主页 -->
+        <main id="home-page" class="page active">
+            <div class="buttons">
+                <button id="new-game-btn" class="btn primary">开始新游戏</button>
+                <button id="history-btn" class="btn">查看历史记录</button>
+                <button id="stats-btn" class="btn">长期输赢统计</button>
+            </div>
+        </main>
+        
+        <!-- 玩家选择页面 -->
+        <main id="player-select-page" class="page">
+            <h2>选择玩家</h2>
+            <p>选择4位参与本次游戏的玩家</p>
+            
+            <div id="player-select-container" class="player-select">
+                <!-- 玩家列表会在这里动态生成 -->
+            </div>
+            
+            <div class="form-group">
+                <button id="add-player-btn" class="btn">添加新玩家</button>
+            </div>
+            
+            <div id="add-player-form" style="display: none;">
+                <div class="form-group">
+                    <label for="player-name">玩家姓名</label>
+                    <input type="text" id="player-name" placeholder="请输入玩家姓名">
+                </div>
+                
+                <div class="form-group">
+                    <label>选择头像</label>
+                    <div class="avatar-select">
+                        <div class="avatar-option" data-id="1">😊</div>
+                        <div class="avatar-option" data-id="2">😎</div>
+                        <div class="avatar-option" data-id="3">🤓</div>
+                        <div class="avatar-option" data-id="4">😄</div>
+                        <div class="avatar-option" data-id="5">🤠</div>
+                        <div class="avatar-option" data-id="6">🐱</div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <button id="save-player-btn" class="btn primary">保存玩家</button>
+                    <button id="cancel-add-player-btn" class="btn">取消</button>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button id="back-from-player-select-btn" class="btn">返回</button>
+                <button id="start-game-btn" class="btn primary" disabled>开始游戏</button>
+            </div>
+        </main>
+        
+        <!-- 游戏记录页面 -->
+        <main id="game-record-page" class="page">
+            <h2>游戏记录</h2>
+            <div class="game-info">
+                <p>局数: <span id="round-count">0</span></p>
+            </div>
+            
+            <div class="game-record">
+                <div class="player-scores" id="player-scores-container">
+                    <!-- 玩家得分输入会在这里动态生成 -->
+                </div>
+                
+                <div class="actions">
+                    <button id="check-current-scores-btn" class="btn secondary">看看谁赢了</button>
+                    <button id="next-round-btn" class="btn primary">确认本局</button>
+                </div>
+            </div>
+            
+            <div class="bottom-actions">
+                <button id="finish-game-btn" class="btn accent">不玩了，结账</button>
+            </div>
+        </main>
+        
+        <!-- 结算页面 -->
+        <main id="settlement-page" class="page">
+            <h2>游戏结算</h2>
+            
+            <div class="game-summary">
+                <p>总局数: <span id="total-rounds">0</span></p>
+                <p>日期: <span id="game-date">-</span></p>
+            </div>
+            
+            <div class="player-totals" id="player-totals-container">
+                <!-- 玩家总输赢会在这里动态生成 -->
+            </div>
+            
+            <div class="actions">
+                <button id="back-to-home-btn" class="btn primary">返回主页</button>
+            </div>
+        </main>
+        
+        <!-- 历史记录页面 -->
+        <main id="history-page" class="page">
+            <h2>历史记录</h2>
+            
+            <div id="history-list-container">
+                <!-- 历史记录会在这里动态生成 -->
+            </div>
+            
+            <div class="actions">
+                <button id="back-from-history-btn" class="btn">返回</button>
+            </div>
+        </main>
+        
+        <!-- 统计页面 -->
+        <main id="stats-page" class="page">
+            <h2>长期输赢统计</h2>
+            
+            <div id="stats-container">
+                <!-- 统计数据会在这里动态生成 -->
+            </div>
+            
+            <div class="actions">
+                <button id="back-from-stats-btn" class="btn">返回</button>
+            </div>
+        </main>
+        
+        <!-- 当前得分弹窗 -->
+        <div id="current-scores-modal" class="modal">
+            <div class="modal-content">
+                <h3>当前得分</h3>
+                <div id="current-scores-container">
+                    <!-- 当前得分会在这里动态生成 -->
+                </div>
+                <button id="close-scores-modal-btn" class="btn">关闭</button>
+            </div>
+        </div>
+        
+        <footer>
+            <p>麻将记账助手 v1.0</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html> 
