@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麻将记账APP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none; /* Prevents pull-to-refresh on mobile */
+        }
+        .page {
+            display: none; /* Hidden by default, shown by JS */
+            min-height: 100vh;
+        }
+        .page.active {
+            display: flex; /* Use flex for centering content */
+            flex-direction: column;
+        }
+        .modal {
+            display: none; /* Hidden by default */
+        }
+        .modal.active {
+            display: flex; /* Show when active */
+        }
+        /* Custom scrollbar for round history */
+        .round-history-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .round-history-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .round-history-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .round-history-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield; /* Firefox */
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #60a5fa; /* Tailwind blue-400 */
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+
+    <div id="app" class="max-w-2xl mx-auto">
+
+        <div id="homePage" class="page active p-6 items-center justify-center">
+            <div class="bg-white p-8 rounded-xl shadow-xl w-full max-w-md text-center">
+                <h1 class="text-4xl font-bold text-sky-600 mb-10">麻将记账</h1>
+                <button onclick="showPlayerSelectionPage()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg text-lg mb-4 transition duration-150">开始新游戏</button>
+                <button onclick="showHistoryPage()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-4 rounded-lg text-lg mb-4 transition duration-150">查看历史记录</button>
+                <button onclick="showStatsPage()" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg text-lg transition duration-150">查看长期统计</button>
+            </div>
+        </div>
+
+        <div id="playerSelectionPage" class="page p-6">
+            <div class="bg-white p-6 rounded-xl shadow-xl w-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-semibold text-slate-700">选择玩家 (请选择4位)</h2>
+                    <button onclick="showHomePage()" class="text-sky-500 hover:text-sky-700 font-medium">返回主页</button>
+                </div>
+                
+                <div class="mb-6">
+                    <h3 class="text-xl font-medium text-slate-600 mb-3">创建新玩家</h3>
+                    <div class="flex gap-3">
+                        <input type="text" id="newPlayerName" placeholder="输入玩家姓名" class="flex-grow p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none">
+                        <button onclick="createPlayer()" class="bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-150">创建</button>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-xl font-medium text-slate-600 mb-3">选择已有玩家</h3>
+                    <div id="existingPlayersList" class="space-y-2 max-h-60 overflow-y-auto round-history-container pr-2">
+                        </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-xl font-medium text-slate-600 mb-2">已选玩家:</h3>
+                    <div id="selectedPlayersForGame" class="flex flex-wrap gap-2 mb-6">
+                        </div>
+                    <button onclick="startGameWithSelectedPlayers()" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg text-lg transition duration-150 disabled:bg-slate-300" id="confirmStartGameButton" disabled>开始游戏 (0/4)</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="gamePage" class="page p-4 md:p-6">
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-xl w-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-slate-700">游戏记录</h2>
+                     <button onclick="confirmEndGameEarly()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-150">返回主页</button>
+                </div>
+
+                <div id="gamePlayersDisplay" class="grid grid-cols-4 gap-2 mb-4 text-center">
+                    </div>
+                <div id="scoreInputRow" class="grid grid-cols-4 gap-2 mb-4">
+                    </div>
+                <button onclick="addRound()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg mb-4 transition duration-150">添加此局记录</button>
+                <p id="roundValidationError" class="text-red-500 text-sm mb-4 text-center"></p>
+
+                <div class="mb-4">
+                    <h3 class="text-xl font-medium text-slate-600 mb-2">当前局数记分:</h3>
+                    <div id="currentRoundTotals" class="grid grid-cols-4 gap-2 text-center font-semibold mb-2 text-lg">
+                        </div>
+                     <button onclick="showCurrentGameTotals()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-3 rounded-lg mb-4 transition duration-150 text-sm">看看谁赢了</button>
+                </div>
+                
+                <h3 class="text-xl font-medium text-slate-600 mb-2">本场对局历史 (新局在上方):</h3>
+                <div id="roundHistoryContainer" class="round-history-container max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-3 bg-slate-50 space-y-2">
+                    </div>
+
+                <button onclick="showSettlementPage()" class="w-full mt-6 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg text-lg transition duration-150">不玩了，结账</button>
+            </div>
+        </div>
+
+        <div id="settlementPage" class="page p-6 items-center">
+            <div class="bg-white p-8 rounded-xl shadow-xl w-full max-w-md text-center">
+                <h2 class="text-3xl font-bold text-sky-600 mb-6">本场结算</h2>
+                <div id="finalScores" class="space-y-3 mb-8">
+                    </div>
+                <button onclick="finalizeGameAndReturnHome()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg text-lg transition duration-150">确认并返回主页</button>
+            </div>
+        </div>
+
+        <div id="historyPage" class="page p-6">
+            <div class="bg-white p-6 rounded-xl shadow-xl w-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-semibold text-slate-700">历史记录</h2>
+                    <button onclick="showHomePage()" class="text-sky-500 hover:text-sky-700 font-medium">返回主页</button>
+                </div>
+                <div id="gameHistoryList" class="space-y-4 max-h-[70vh] overflow-y-auto round-history-container pr-2">
+                    </div>
+                 <p id="noHistoryMessage" class="text-slate-500 text-center py-4">暂无历史记录。</p>
+            </div>
+        </div>
+
+        <div id="statsPage" class="page p-6">
+             <div class="bg-white p-6 rounded-xl shadow-xl w-full">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-semibold text-slate-700">长期统计</h2>
+                    <button onclick="showHomePage()" class="text-sky-500 hover:text-sky-700 font-medium">返回主页</button>
+                </div>
+                <div id="longTermStatsList" class="space-y-3 max-h-[70vh] overflow-y-auto round-history-container pr-2">
+                    </div>
+                <p id="noStatsMessage" class="text-slate-500 text-center py-4">暂无玩家数据或统计信息。</p>
+            </div>
+        </div>
+
+        <div id="currentTotalsModal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center p-4 z-50">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+                <h3 class="text-2xl font-semibold text-slate-700 mb-4 text-center">当前总分</h3>
+                <div id="modalCurrentScores" class="space-y-2 mb-6">
+                    </div>
+                <button onclick="closeCurrentTotalsModal()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">关闭</button>
+            </div>
+        </div>
+        
+        <div id="confirmationModal" class="modal fixed inset-0 bg-gray-900 bg-opacity-75 items-center justify-center p-4 z-50">
+            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+                <h3 id="confirmationModalTitle" class="text-xl font-semibold text-slate-700 mb-4 text-center">确认操作</h3>
+                <p id="confirmationModalMessage" class="text-slate-600 mb-6 text-center">您确定要执行此操作吗？</p>
+                <div class="flex gap-3">
+                    <button id="confirmActionButton" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">确认</button>
+                    <button onclick="closeConfirmationModal()" class="flex-1 bg-slate-300 hover:bg-slate-400 text-slate-800 font-semibold py-2 px-4 rounded-lg transition duration-150">取消</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Globals & State ---
+        let players = JSON.parse(localStorage.getItem('mahjongPlayers')) || [];
+        let gameHistory = JSON.parse(localStorage.getItem('mahjongGameHistory')) || [];
+        let currentPlayerSelection = []; // Array of player IDs for the current game selection
+        let currentGame = {
+            players: [], // {id, name, avatarInitial, currentScore}
+            rounds: [] // Array of arrays, e.g., [[10, -5, -5, 0], ...]
+        };
+
+        // --- Navigation ---
+        const pages = ['homePage', 'playerSelectionPage', 'gamePage', 'settlementPage', 'historyPage', 'statsPage'];
+        function navigateTo(pageId) {
+            pages.forEach(pid => {
+                document.getElementById(pid).classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+            window.scrollTo(0, 0); // Scroll to top on page change
+        }
+
+        function showHomePage() { navigateTo('homePage'); }
+        function showPlayerSelectionPage() {
+            currentPlayerSelection = [];
+            renderExistingPlayers();
+            updateSelectedPlayersForGameDisplay();
+            updateConfirmStartGameButton();
+            navigateTo('playerSelectionPage');
+        }
+        function showGamePage() { navigateTo('gamePage'); }
+        function showSettlementPage() {
+            renderFinalScores();
+            navigateTo('settlementPage');
+        }
+        function showHistoryPage() {
+            renderGameHistory();
+            navigateTo('historyPage');
+        }
+        function showStatsPage() {
+            renderLongTermStats();
+            navigateTo('statsPage');
+        }
+
+        // --- Player Management ---
+        function generatePlayerId() { return Date.now().toString(); }
+
+        function getPlayerAvatarInitial(name) {
+            if (!name || name.trim() === "") return "?";
+            return name.trim()[0].toUpperCase();
+        }
+
+        function createPlayer() {
+            const nameInput = document.getElementById('newPlayerName');
+            const name = nameInput.value.trim();
+            if (name) {
+                if (players.find(p => p.name === name)) {
+                    alert('已存在同名玩家！');
+                    return;
+                }
+                const newPlayer = { 
+                    id: generatePlayerId(), 
+                    name: name, 
+                    avatarInitial: getPlayerAvatarInitial(name),
+                    totalWins: 0, // For long-term stats
+                    gamesPlayed: 0 
+                };
+                players.push(newPlayer);
+                savePlayers();
+                renderExistingPlayers();
+                nameInput.value = '';
+            } else {
+                alert('请输入玩家姓名！');
+            }
+        }
+
+        function deletePlayer(playerId, event) {
+            event.stopPropagation(); // Prevent player selection when clicking delete
+            
+            openConfirmationModal(
+                '删除玩家',
+                `确定要删除玩家 "${players.find(p => p.id === playerId)?.name}" 吗？此操作会影响长期统计，但不会删除历史对局中的该玩家记录。`,
+                () => {
+                    players = players.filter(p => p.id !== playerId);
+                    // Remove from current selection if present
+                    currentPlayerSelection = currentPlayerSelection.filter(id => id !== playerId);
+                    
+                    savePlayers();
+                    renderExistingPlayers();
+                    updateSelectedPlayersForGameDisplay();
+                    updateConfirmStartGameButton();
+                    closeConfirmationModal();
+                }
+            );
+        }
+        
+        function togglePlayerSelection(playerId) {
+            const index = currentPlayerSelection.indexOf(playerId);
+            if (index > -1) {
+                currentPlayerSelection.splice(index, 1);
+            } else {
+                if (currentPlayerSelection.length < 4) {
+                    currentPlayerSelection.push(playerId);
+                } else {
+                    alert('最多只能选择4位玩家。');
+                }
+            }
+            renderExistingPlayers(); // Re-render to update selection highlight
+            updateSelectedPlayersForGameDisplay();
+            updateConfirmStartGameButton();
+        }
+
+        function renderExistingPlayers() {
+            const listDiv = document.getElementById('existingPlayersList');
+            listDiv.innerHTML = '';
+            if (players.length === 0) {
+                listDiv.innerHTML = '<p class="text-slate-500">还没有创建任何玩家。</p>';
+                return;
+            }
+            players.sort((a,b) => a.name.localeCompare(b.name)).forEach(player => {
+                const isSelected = currentPlayerSelection.includes(player.id);
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all duration-150 ${isSelected ? 'bg-sky-100 border-sky-500 ring-2 ring-sky-500' : 'border-slate-200 hover:bg-slate-50'}`;
+                playerDiv.onclick = () => togglePlayerSelection(player.id);
+                
+                playerDiv.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="avatar" style="background-color: ${getAvatarColor(player.id)}">${player.avatarInitial}</div>
+                        <span class="font-medium text-slate-700">${player.name}</span>
+                    </div>
+                    <button onclick="deletePlayer('${player.id}', event)" class="text-red-500 hover:text-red-700 text-sm font-medium py-1 px-2 rounded hover:bg-red-100">删除</button>
+                `;
+                listDiv.appendChild(playerDiv);
+            });
+        }
+        
+        function getAvatarColor(id) {
+            // Simple hash function for consistent colors per player
+            let hash = 0;
+            for (let i = 0; i < id.length; i++) {
+                hash = id.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const colors = ['#fb7185', '#fdba74', '#d946ef', '#a78bfa', '#22d3ee', '#34d399', '#facc15', '#818cf8']; // Tailwind P3 colors
+            return colors[Math.abs(hash) % colors.length];
+        }
+
+
+        function updateSelectedPlayersForGameDisplay() {
+            const displayDiv = document.getElementById('selectedPlayersForGame');
+            displayDiv.innerHTML = '';
+            currentPlayerSelection.forEach(playerId => {
+                const player = players.find(p => p.id === playerId);
+                if (player) {
+                    const playerTag = document.createElement('div');
+                    playerTag.className = 'bg-sky-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1';
+                    playerTag.innerHTML = `
+                        <span>${player.name}</span>
+                        <button onclick="removePlayerFromSelection('${playerId}')" class="text-sky-200 hover:text-white text-xs">✕</button>
+                    `;
+                    displayDiv.appendChild(playerTag);
+                }
+            });
+        }
+
+        function removePlayerFromSelection(playerId) {
+            currentPlayerSelection = currentPlayerSelection.filter(id => id !== playerId);
+            renderExistingPlayers(); // To unhighlight
+            updateSelectedPlayersForGameDisplay();
+            updateConfirmStartGameButton();
+        }
+
+        function updateConfirmStartGameButton() {
+            const button = document.getElementById('confirmStartGameButton');
+            button.disabled = currentPlayerSelection.length !== 4;
+            button.textContent = `开始游戏 (${currentPlayerSelection.length}/4)`;
+        }
+
+        // --- Game Logic ---
+        function startGameWithSelectedPlayers() {
+            if (currentPlayerSelection.length !== 4) {
+                alert('请选择4位玩家开始游戏。');
+                return;
+            }
+            currentGame.players = currentPlayerSelection.map(id => {
+                const player = players.find(p => p.id === id);
+                return { id: player.id, name: player.name, avatarInitial: player.avatarInitial, currentScore: 0 };
+            });
+            currentGame.rounds = [];
+            document.getElementById('roundValidationError').textContent = '';
+            renderGamePageLayout();
+            renderCurrentRoundTotals();
+            renderRoundHistory();
+            showGamePage();
+        }
+
+        function renderGamePageLayout() {
+            const playersDisplay = document.getElementById('gamePlayersDisplay');
+            const scoreInputRow = document.getElementById('scoreInputRow');
+            playersDisplay.innerHTML = '';
+            scoreInputRow.innerHTML = '';
+
+            currentGame.players.forEach((player, index) => {
+                // Display player name
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'font-semibold text-slate-700 truncate px-1';
+                playerDiv.textContent = player.name;
+                playersDisplay.appendChild(playerDiv);
+
+                // Create score input
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.id = `playerScoreInput${index}`;
+                input.placeholder = ""; // Empty placeholder
+                input.className = 'w-full p-2 border border-slate-300 rounded-lg text-center focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none';
+                scoreInputRow.appendChild(input);
+            });
+        }
+
+        function addRound() {
+            const scores = [];
+            let sum = 0;
+            let allInputsValid = true;
+            document.getElementById('roundValidationError').textContent = '';
+
+            for (let i = 0; i < 4; i++) {
+                const input = document.getElementById(`playerScoreInput${i}`);
+                const scoreStr = input.value.trim();
+                if (scoreStr === "") { // Allow empty input, treat as 0 for sum check if others are filled
+                                       // but require all to be filled to proceed.
+                    // If we want to enforce all fields to be filled:
+                    // alert(`请输入玩家 ${currentGame.players[i].name} 的分数。`);
+                    // allInputsValid = false;
+                    // break;
+                    // For now, let's be flexible. If an input is empty, it's not part of the sum for validation,
+                    // but we need a number to store. Let's enforce numbers.
+                    alert(`请输入玩家 ${currentGame.players[i].name} 的分数。`);
+                    document.getElementById('roundValidationError').textContent = `请输入玩家 ${currentGame.players[i].name} 的分数。`;
+                    allInputsValid = false;
+                    return; 
+                }
+                
+                const score = parseInt(scoreStr);
+                if (isNaN(score)) {
+                    document.getElementById('roundValidationError').textContent = `玩家 ${currentGame.players[i].name} 的分数无效。`;
+                    allInputsValid = false;
+                    return; // Exit if any score is not a number
+                }
+                scores.push(score);
+                sum += score;
+            }
+
+            if (!allInputsValid) return; // If any input was invalid (e.g. not a number)
+
+            if (sum !== 0) {
+                document.getElementById('roundValidationError').textContent = '当局分数总和必须为0！请检查输入。';
+                return;
+            }
+
+            // Add scores to each player's total for the current game
+            scores.forEach((score, index) => {
+                currentGame.players[index].currentScore += score;
+            });
+
+            currentGame.rounds.unshift([...scores]); // Add to the beginning for "newest on top"
+
+            // Clear input fields
+            for (let i = 0; i < 4; i++) {
+                document.getElementById(`playerScoreInput${i}`).value = '';
+            }
+            
+            renderCurrentRoundTotals();
+            renderRoundHistory();
+        }
+
+        function renderCurrentRoundTotals() {
+            const totalsDiv = document.getElementById('currentRoundTotals');
+            totalsDiv.innerHTML = '';
+            currentGame.players.forEach(player => {
+                const scoreDiv = document.createElement('div');
+                scoreDiv.textContent = player.currentScore;
+                scoreDiv.className = player.currentScore >= 0 ? 'text-green-600' : 'text-red-600';
+                totalsDiv.appendChild(scoreDiv);
+            });
+        }
+        
+        function showCurrentGameTotals() {
+            const modalScoresDiv = document.getElementById('modalCurrentScores');
+            modalScoresDiv.innerHTML = '';
+            currentGame.players.forEach(player => {
+                const playerTotalDiv = document.createElement('div');
+                playerTotalDiv.className = 'flex justify-between items-center py-2 border-b border-slate-200';
+                playerTotalDiv.innerHTML = `
+                    <span class="font-medium text-slate-700">${player.name}</span>
+                    <span class="font-bold ${player.currentScore >= 0 ? 'text-green-600' : 'text-red-600'}">${player.currentScore}</span>
+                `;
+                modalScoresDiv.appendChild(playerTotalDiv);
+            });
+            document.getElementById('currentTotalsModal').classList.add('active');
+        }
+
+        function closeCurrentTotalsModal() {
+            document.getElementById('currentTotalsModal').classList.remove('active');
+        }
+
+        function renderRoundHistory() {
+            const historyContainer = document.getElementById('roundHistoryContainer');
+            historyContainer.innerHTML = '';
+            if (currentGame.rounds.length === 0) {
+                historyContainer.innerHTML = '<p class="text-slate-500 text-center">暂无本场对局记录。</p>';
+                return;
+            }
+
+            currentGame.rounds.forEach((roundScores, roundIndex) => {
+                const roundDiv = document.createElement('div');
+                roundDiv.className = 'p-3 bg-white rounded-md shadow-sm border border-slate-200';
+                
+                const roundNumber = currentGame.rounds.length - roundIndex;
+                let scoresHTML = `<div class="text-sm font-semibold text-slate-500 mb-1">第 ${roundNumber} 局</div>`;
+                scoresHTML += '<div class="grid grid-cols-4 gap-2 text-sm">';
+                
+                roundScores.forEach((score, playerIndex) => {
+                    scoresHTML += `<div class="${score >= 0 ? 'text-green-500' : 'text-red-500'}">${score}</div>`;
+                });
+                scoresHTML += '</div>';
+                roundDiv.innerHTML = scoresHTML;
+                historyContainer.appendChild(roundDiv);
+            });
+        }
+        
+        function confirmEndGameEarly() {
+             openConfirmationModal(
+                '结束游戏?',
+                '确定要提前结束当前游戏吗？未保存的进度将会丢失。',
+                () => {
+                    closeConfirmationModal();
+                    showHomePage(); // Or player selection, depending on desired flow
+                }
+            );
+        }
+
+
+        function renderFinalScores() {
+            const finalScoresDiv = document.getElementById('finalScores');
+            finalScoresDiv.innerHTML = '';
+            currentGame.players.forEach(player => {
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = 'flex justify-between items-center text-xl py-2';
+                scoreDiv.innerHTML = `
+                    <span class="font-semibold text-slate-800">${player.name}</span>
+                    <span class="font-bold ${player.currentScore >= 0 ? 'text-green-600' : 'text-red-600'}">${player.currentScore}</span>
+                `;
+                finalScoresDiv.appendChild(scoreDiv);
+            });
+        }
+
+        function finalizeGameAndReturnHome() {
+            // Prepare game data for history
+            const gameToSave = {
+                date: new Date().toISOString(),
+                players: currentGame.players.map(p => ({ id: p.id, name: p.name, score: p.currentScore })),
+                rounds: [...currentGame.rounds].reverse() // Save rounds in chronological order for history
+            };
+            gameHistory.unshift(gameToSave); // Add to beginning of history
+
+            // Update long-term stats for each player
+            currentGame.players.forEach(gamePlayer => {
+                const playerInDb = players.find(p => p.id === gamePlayer.id);
+                if (playerInDb) {
+                    playerInDb.totalWins += gamePlayer.currentScore;
+                    playerInDb.gamesPlayed = (playerInDb.gamesPlayed || 0) + 1;
+                }
+            });
+
+            savePlayers();
+            saveGameHistory();
+            
+            // Reset current game state
+            currentGame = { players: [], rounds: [] };
+            currentPlayerSelection = [];
+
+            showHomePage();
+        }
+
+        // --- History Page ---
+        function renderGameHistory() {
+            const listDiv = document.getElementById('gameHistoryList');
+            const noHistoryMsg = document.getElementById('noHistoryMessage');
+            listDiv.innerHTML = '';
+            if (gameHistory.length === 0) {
+                noHistoryMsg.style.display = 'block';
+                listDiv.style.display = 'none';
+                return;
+            }
+            
+            noHistoryMsg.style.display = 'none';
+            listDiv.style.display = 'block';
+
+            gameHistory.forEach((game, index) => {
+                const gameDiv = document.createElement('div');
+                gameDiv.className = 'bg-white p-4 rounded-lg shadow border border-slate-200';
+                
+                const date = new Date(game.date);
+                const formattedDate = `${date.toLocaleDateString('zh-CN')} ${date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'})}`;
+                
+                let playersHtml = '<div class="mb-2">';
+                game.players.forEach(p => {
+                    playersHtml += `
+                        <div class="flex justify-between items-center text-sm py-0.5">
+                            <span class="text-slate-700">${p.name}</span>
+                            <span class="font-medium ${p.score >= 0 ? 'text-green-600' : 'text-red-600'}">${p.score}</span>
+                        </div>
+                    `;
+                });
+                playersHtml += '</div>';
+
+                gameDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="font-semibold text-md text-sky-600">对局 #${gameHistory.length - index} - ${formattedDate}</h4>
+                        <button onclick="deleteGameHistory(${index}, event)" class="text-xs text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-100">删除此记录</button>
+                    </div>
+                    ${playersHtml}
+                    <details class="text-xs">
+                        <summary class="cursor-pointer text-sky-500 hover:text-sky-700">查看详细局数 (${game.rounds.length} 局)</summary>
+                        <div class="mt-2 space-y-1 pl-2 border-l-2 border-slate-200">
+                            ${game.rounds.map((round, i) => `
+                                <div class="text-slate-600">
+                                    第 ${i+1} 局: ${round.map((s, pi) => `<span class="${s >= 0 ? 'text-green-500' : 'text-red-500'}">${s}</span>`).join(' / ')}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </details>
+                `;
+                listDiv.appendChild(gameDiv);
+            });
+        }
+
+        function deleteGameHistory(index, event) {
+            event.stopPropagation();
+            openConfirmationModal(
+                '删除历史记录',
+                `确定要删除这条对局历史记录吗？此操作不可撤销，但不会影响玩家的长期统计数据（因为统计已在游戏结束时更新）。`,
+                () => {
+                    gameHistory.splice(index, 1);
+                    saveGameHistory();
+                    renderGameHistory();
+                    closeConfirmationModal();
+                }
+            );
+        }
+
+
+        // --- Long-term Statistics Page ---
+        function renderLongTermStats() {
+            const listDiv = document.getElementById('longTermStatsList');
+            const noStatsMsg = document.getElementById('noStatsMessage');
+            listDiv.innerHTML = '';
+
+            const sortedPlayers = [...players].sort((a, b) => b.totalWins - a.totalWins);
+
+            if (sortedPlayers.length === 0) {
+                noStatsMsg.style.display = 'block';
+                listDiv.style.display = 'none';
+                return;
+            }
+            
+            noStatsMsg.style.display = 'none';
+            listDiv.style.display = 'block';
+
+            sortedPlayers.forEach(player => {
+                const playerStatDiv = document.createElement('div');
+                playerStatDiv.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow border border-slate-200';
+                playerStatDiv.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="avatar" style="background-color: ${getAvatarColor(player.id)}">${player.avatarInitial}</div>
+                        <div>
+                            <span class="font-semibold text-slate-800 text-lg">${player.name}</span>
+                            <p class="text-xs text-slate-500">参与对局: ${player.gamesPlayed || 0}</p>
+                        </div>
+                    </div>
+                    <span class="font-bold text-xl ${player.totalWins >= 0 ? 'text-green-600' : 'text-red-600'}">${player.totalWins}</span>
+                `;
+                listDiv.appendChild(playerStatDiv);
+            });
+        }
+
+        // --- Data Persistence ---
+        function savePlayers() {
+            localStorage.setItem('mahjongPlayers', JSON.stringify(players));
+        }
+        function saveGameHistory() {
+            localStorage.setItem('mahjongGameHistory', JSON.stringify(gameHistory));
+        }
+        
+        // --- Confirmation Modal ---
+        let confirmCallback = null;
+        function openConfirmationModal(title, message, onConfirm) {
+            document.getElementById('confirmationModalTitle').textContent = title;
+            document.getElementById('confirmationModalMessage').textContent = message;
+            confirmCallback = onConfirm;
+            document.getElementById('confirmationModal').classList.add('active');
+            document.getElementById('confirmActionButton').onclick = () => {
+                if (confirmCallback) confirmCallback();
+            };
+        }
+
+        function closeConfirmationModal() {
+            document.getElementById('confirmationModal').classList.remove('active');
+            confirmCallback = null;
+        }
+
+
+        // --- Initial Load ---
+        window.onload = () => {
+            showHomePage(); // Start at the home page
+        };
+
+    </script>
+</body>
+</html>
