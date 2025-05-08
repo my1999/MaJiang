@@ -9,23 +9,22 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            overscroll-behavior: none; /* Prevents pull-to-refresh on mobile */
+            overscroll-behavior: none; 
         }
         .page {
-            display: none; /* Hidden by default, shown by JS */
+            display: none; 
             min-height: 100vh;
         }
         .page.active {
-            display: flex; /* Use flex for centering content */
+            display: flex; 
             flex-direction: column;
         }
         .modal {
-            display: none; /* Hidden by default */
+            display: none; 
         }
         .modal.active {
-            display: flex; /* Show when active */
+            display: flex; 
         }
-        /* Custom scrollbar for round history */
         .round-history-container::-webkit-scrollbar {
             width: 8px;
         }
@@ -46,13 +45,13 @@
             margin: 0;
         }
         input[type="number"] {
-            -moz-appearance: textfield; /* Firefox */
+            -moz-appearance: textfield; 
         }
         .avatar {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background-color: #60a5fa; /* Tailwind blue-400 */
+            background-color: #60a5fa; 
             color: white;
             display: flex;
             align-items: center;
@@ -111,7 +110,7 @@
             <div class="bg-white p-4 md:p-6 rounded-xl shadow-xl w-full">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold text-slate-700">游戏记录</h2>
-                     <button onclick="confirmEndGameEarly()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-150">返回主页</button>
+                     <button onclick="confirmEndGameEarly()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg text-sm transition duration-150">放弃本局</button>
                 </div>
 
                 <div id="gamePlayersDisplay" class="grid grid-cols-4 gap-2 mb-4 text-center">
@@ -119,7 +118,7 @@
                 <div id="scoreInputRow" class="grid grid-cols-4 gap-2 mb-4">
                     </div>
                 <button onclick="addRound()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg mb-2 transition duration-150">添加此局记录</button>
-                <p id="roundValidationError" class="text-red-500 text-sm mb-4 text-center h-5"></p> 
+                <p id="roundValidationError" class="text-red-500 text-sm mb-4 text-center h-5"></p>
 
                 <div class="mb-4">
                     <h3 class="text-xl font-medium text-slate-600 mb-2">当前局数记分:</h3>
@@ -193,34 +192,24 @@
 
     <script>
         // --- Globals & State ---
+        const IN_PROGRESS_GAME_KEY = 'mahjongCurrentGameInProgress';
         let players = [];
         let gameHistory = [];
 
-        // Robust loading from localStorage
         try {
             const storedPlayers = localStorage.getItem('mahjongPlayers');
-            if (storedPlayers) {
-                players = JSON.parse(storedPlayers);
-            } else {
-                players = []; 
-            }
+            players = storedPlayers ? JSON.parse(storedPlayers) : [];
         } catch (e) {
             console.error("Error parsing mahjongPlayers from localStorage:", e);
             players = []; 
-            // alert("警告：读取玩家数据时发生错误，部分数据可能已丢失。已恢复为默认状态。"); // Optional: notify user
         }
 
         try {
             const storedGameHistory = localStorage.getItem('mahjongGameHistory');
-            if (storedGameHistory) {
-                gameHistory = JSON.parse(storedGameHistory);
-            } else {
-                gameHistory = [];
-            }
+            gameHistory = storedGameHistory ? JSON.parse(storedGameHistory) : [];
         } catch (e) {
             console.error("Error parsing mahjongGameHistory from localStorage:", e);
             gameHistory = [];
-            // alert("警告：读取历史记录时发生错误，部分数据可能已丢失。已恢复为默认状态。"); // Optional: notify user
         }
 
         let currentPlayerSelection = []; 
@@ -233,20 +222,28 @@
         const pages = ['homePage', 'playerSelectionPage', 'gamePage', 'settlementPage', 'historyPage', 'statsPage'];
         function navigateTo(pageId) {
             pages.forEach(pid => {
-                document.getElementById(pid).classList.remove('active');
+                const pageElement = document.getElementById(pid);
+                if (pageElement) pageElement.classList.remove('active');
             });
             const targetPage = document.getElementById(pageId);
             if (targetPage) {
                  targetPage.classList.add('active');
             } else {
-                console.error("Page not found: " + pageId);
-                document.getElementById('homePage').classList.add('active'); // Fallback to home
+                console.error("Page not found: " + pageId + ". Defaulting to homePage.");
+                document.getElementById('homePage').classList.add('active'); 
             }
             window.scrollTo(0, 0);
         }
 
         function showHomePage() { navigateTo('homePage'); }
         function showPlayerSelectionPage() {
+            // Clear any in-progress game if user explicitly goes to select players for a *new* game.
+            // However, if they are just managing players without starting, this might be too aggressive.
+            // For now, let's assume starting player selection means a fresh start if no game is active.
+            // A more nuanced approach might be needed if "manage players" is a separate flow from "start new game".
+            if (!isGameInProgress()) { // Only clear if no game is actively being restored
+                 clearInProgressGame();
+            }
             currentPlayerSelection = [];
             renderExistingPlayers();
             updateSelectedPlayersForGameDisplay();
@@ -270,7 +267,7 @@
         }
 
         // --- Player Management ---
-        function generatePlayerId() { return Date.now().toString() + Math.random().toString(36).substring(2,7); } // Added randomness
+        function generatePlayerId() { return Date.now().toString() + Math.random().toString(36).substring(2,7); } 
 
         function getPlayerAvatarInitial(name) {
             if (!name || name.trim() === "") return "?";
@@ -306,7 +303,6 @@
 
         function deletePlayer(playerId, event) {
             event.stopPropagation(); 
-            
             const playerToDelete = players.find(p => p.id === playerId);
             if (!playerToDelete) return;
 
@@ -316,7 +312,6 @@
                 () => {
                     players = players.filter(p => p.id !== playerId);
                     currentPlayerSelection = currentPlayerSelection.filter(id => id !== playerId);
-                    
                     savePlayers();
                     renderExistingPlayers();
                     updateSelectedPlayersForGameDisplay();
@@ -371,10 +366,10 @@
         
         function getAvatarColor(id) {
             let hash = 0;
-            if (!id || id.length === 0) return '#60a5fa'; // Default color
+            if (!id || id.length === 0) return '#60a5fa'; 
             for (let i = 0; i < id.length; i++) {
                 hash = id.charCodeAt(i) + ((hash << 5) - hash);
-                hash = hash & hash; // Convert to 32bit integer
+                hash = hash & hash; 
             }
             const colors = ['#fb7185', '#fdba74', '#d946ef', '#a78bfa', '#22d3ee', '#34d399', '#facc15', '#818cf8'];
             return colors[Math.abs(hash) % colors.length];
@@ -406,11 +401,65 @@
 
         function updateConfirmStartGameButton() {
             const button = document.getElementById('confirmStartGameButton');
-            button.disabled = currentPlayerSelection.length !== 4;
-            button.textContent = `开始游戏 (${currentPlayerSelection.length}/4)`;
+            if(button) { // Ensure button exists
+                button.disabled = currentPlayerSelection.length !== 4;
+                button.textContent = `开始游戏 (${currentPlayerSelection.length}/4)`;
+            }
         }
 
-        // --- Game Logic ---
+        // --- Game Logic & State Persistence ---
+        function saveCurrentGameInProgress() {
+            if (currentGame && currentGame.players && currentGame.players.length > 0) {
+                try {
+                    localStorage.setItem(IN_PROGRESS_GAME_KEY, JSON.stringify(currentGame));
+                } catch (e) {
+                    console.error("Error saving in-progress game:", e);
+                }
+            } else {
+                // If currentGame is not valid to save, ensure any old in-progress game is cleared.
+                clearInProgressGame();
+            }
+        }
+
+        function loadAndResumeGameInProgress() {
+            try {
+                const savedGame = localStorage.getItem(IN_PROGRESS_GAME_KEY);
+                if (savedGame) {
+                    const parsedGame = JSON.parse(savedGame);
+                    // Basic validation of the loaded game object
+                    if (parsedGame && parsedGame.players && Array.isArray(parsedGame.players) && parsedGame.players.length === 4 && parsedGame.rounds && Array.isArray(parsedGame.rounds)) {
+                        currentGame = parsedGame;
+                        // Restore UI
+                        renderGamePageLayout(); // Sets up player names and input fields
+                        renderCurrentRoundTotals(); // Display scores
+                        renderRoundHistory(); // Display past rounds of this game
+                        showGamePage(); // Navigate to game page
+                        return true; // Game resumed
+                    } else {
+                        console.warn("Invalid in-progress game data found. Clearing it.");
+                        clearInProgressGame(); // Clear invalid data
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading or parsing in-progress game:", e);
+                clearInProgressGame(); // Clear potentially corrupted data
+            }
+            return false; // No game resumed
+        }
+        
+        function clearInProgressGame() {
+            try {
+                localStorage.removeItem(IN_PROGRESS_GAME_KEY);
+            } catch (e) {
+                console.error("Error clearing in-progress game:", e);
+            }
+        }
+
+        function isGameInProgress() {
+            return currentGame && currentGame.players && currentGame.players.length > 0;
+        }
+
+
         function startGameWithSelectedPlayers() {
             const startGameErrorElement = document.getElementById('startGameError');
             startGameErrorElement.textContent = '';
@@ -418,12 +467,17 @@
                 startGameErrorElement.textContent = '请选择4位玩家开始游戏。';
                 return;
             }
+            // A new game is starting, clear any old in-progress game.
+            clearInProgressGame(); 
+
             currentGame.players = currentPlayerSelection.map(id => {
                 const player = players.find(p => p.id === id);
-                // Fallback for safety, though player should always be found
                 return { id: player ? player.id : 'unknown', name: player ? player.name : '未知玩家', avatarInitial: player ? player.avatarInitial : '?', currentScore: 0 };
             });
             currentGame.rounds = [];
+            
+            saveCurrentGameInProgress(); // Save initial state of new game
+
             document.getElementById('roundValidationError').textContent = '';
             renderGamePageLayout();
             renderCurrentRoundTotals();
@@ -437,6 +491,8 @@
             playersDisplay.innerHTML = '';
             scoreInputRow.innerHTML = '';
 
+            if (!currentGame || !currentGame.players) return;
+
             currentGame.players.forEach((player, index) => {
                 const playerDiv = document.createElement('div');
                 playerDiv.className = 'font-semibold text-slate-700 truncate px-1';
@@ -444,7 +500,7 @@
                 playersDisplay.appendChild(playerDiv);
 
                 const input = document.createElement('input');
-                input.type = 'number'; // Still number for numeric keyboard, but parsing handles non-numbers
+                input.type = 'number'; 
                 input.id = `playerScoreInput${index}`;
                 input.placeholder = ""; 
                 input.className = 'w-full p-2 border border-slate-300 rounded-lg text-center focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none';
@@ -454,9 +510,8 @@
 
         function addRound() {
             const validationErrorElement = document.getElementById('roundValidationError');
-            validationErrorElement.textContent = ''; // Clear previous errors
+            validationErrorElement.textContent = ''; 
 
-            // Defensive check for game state
             if (!currentGame || !currentGame.players || currentGame.players.length !== 4) {
                 console.error("Game state is invalid in addRound.");
                 validationErrorElement.textContent = "发生内部错误：游戏状态无效。请尝试重新开始游戏。";
@@ -469,7 +524,6 @@
                 scoreStrings.push(inputElement.value.trim());
             }
 
-            // 1. Check if any input is empty
             for (let i = 0; i < 4; i++) {
                 if (scoreStrings[i] === "") {
                     validationErrorElement.textContent = `请输入玩家 ${currentGame.players[i].name} 的分数。`;
@@ -477,7 +531,6 @@
                 }
             }
 
-            // 2. Parse all inputs since none are empty, and check for non-numeric values
             const scores = [];
             let sum = 0;
             for (let i = 0; i < 4; i++) {
@@ -490,17 +543,17 @@
                 sum += score;
             }
 
-            // 3. Validate sum
             if (sum !== 0) {
                 validationErrorElement.textContent = '当局分数总和必须为0！请检查输入。';
                 return; 
             }
 
-            // If all checks pass:
             scores.forEach((score, index) => {
                 currentGame.players[index].currentScore += score;
             });
             currentGame.rounds.unshift([...scores]); 
+            
+            saveCurrentGameInProgress(); // Save after round is successfully added
 
             for (let i = 0; i < 4; i++) {
                 document.getElementById(`playerScoreInput${i}`).value = '';
@@ -559,7 +612,7 @@
                 let scoresHTML = `<div class="text-sm font-semibold text-slate-500 mb-1">第 ${roundNumber} 局</div>`;
                 scoresHTML += '<div class="grid grid-cols-4 gap-2 text-sm">';
                 
-                roundScores.forEach((score) => { // Removed playerIndex as it's not used here
+                roundScores.forEach((score) => { 
                     scoresHTML += `<div class="${score >= 0 ? 'text-green-500' : 'text-red-500'}">${score}</div>`;
                 });
                 scoresHTML += '</div>';
@@ -568,11 +621,13 @@
             });
         }
         
-        function confirmEndGameEarly() {
+        function confirmEndGameEarly() { // Renamed button text to "放弃本局" (Abandon Current Game)
              openConfirmationModal(
-                '结束游戏?',
-                '确定要提前结束当前游戏吗？未结算的进度将会丢失。',
+                '放弃本局?',
+                '确定要放弃当前对局吗？未结算的进度将会丢失，且无法恢复。',
                 () => {
+                    clearInProgressGame(); // Clear the in-progress game from localStorage
+                    currentGame = { players: [], rounds: [] }; // Reset current game state in memory
                     closeConfirmationModal();
                     showHomePage(); 
                 }
@@ -598,7 +653,8 @@
         function finalizeGameAndReturnHome() {
             if (!currentGame || !currentGame.players || currentGame.players.length === 0) {
                  console.warn("Finalize called with no current game or players.");
-                 showHomePage(); // Go home anyway
+                 clearInProgressGame(); // Ensure any stray in-progress game is cleared
+                 showHomePage(); 
                  return;
             }
             const gameToSave = {
@@ -611,7 +667,7 @@
             currentGame.players.forEach(gamePlayer => {
                 const playerInDb = players.find(p => p.id === gamePlayer.id);
                 if (playerInDb) {
-                    playerInDb.totalWins = (playerInDb.totalWins || 0) + gamePlayer.currentScore; // Ensure totalWins is a number
+                    playerInDb.totalWins = (playerInDb.totalWins || 0) + gamePlayer.currentScore; 
                     playerInDb.gamesPlayed = (playerInDb.gamesPlayed || 0) + 1;
                 }
             });
@@ -619,7 +675,8 @@
             savePlayers();
             saveGameHistory();
             
-            currentGame = { players: [], rounds: [] };
+            clearInProgressGame(); // Game is finished, clear from in-progress
+            currentGame = { players: [], rounds: [] }; // Reset current game state in memory
             currentPlayerSelection = [];
 
             showHomePage();
@@ -694,7 +751,7 @@
 
             openConfirmationModal(
                 '删除历史记录',
-                `确定要删除这条对局历史记录吗 (日期: ${new Date(gameToDelete.date).toLocaleDateString('zh-CN')})？此操作不可撤销。注意：这不会自动调整玩家的长期统计数据，因为统计数据是在游戏结束时更新的。如果需要调整长期统计，可能需要手动处理或重置玩家数据。`,
+                `确定要删除这条对局历史记录吗 (日期: ${new Date(gameToDelete.date).toLocaleDateString('zh-CN')})？此操作不可撤销。注意：这不会自动调整玩家的长期统计数据。`,
                 () => {
                     gameHistory.splice(index, 1);
                     saveGameHistory();
@@ -703,7 +760,6 @@
                 }
             );
         }
-
 
         // --- Long-term Statistics Page ---
         function renderLongTermStats() {
@@ -725,7 +781,7 @@
             sortedPlayers.forEach(player => {
                 const playerStatDiv = document.createElement('div');
                 playerStatDiv.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow border border-slate-200';
-                const totalWins = player.totalWins || 0; // Default to 0 if undefined
+                const totalWins = player.totalWins || 0; 
                 playerStatDiv.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="avatar" style="background-color: ${getAvatarColor(player.id)}">${player.avatarInitial}</div>
@@ -740,13 +796,12 @@
             });
         }
 
-        // --- Data Persistence ---
+        // --- Data Persistence (localStorage wrappers) ---
         function savePlayers() {
             try {
                 localStorage.setItem('mahjongPlayers', JSON.stringify(players));
             } catch (e) {
                 console.error("Error saving players to localStorage:", e);
-                // alert("错误：保存玩家数据失败！部分更改可能未保存。"); // Optional
             }
         }
         function saveGameHistory() {
@@ -754,7 +809,6 @@
                 localStorage.setItem('mahjongGameHistory', JSON.stringify(gameHistory));
             } catch (e) {
                 console.error("Error saving game history to localStorage:", e);
-                // alert("错误：保存历史记录失败！部分更改可能未保存。"); // Optional
             }
         }
         
@@ -763,9 +817,8 @@
         function openConfirmationModal(title, message, onConfirm) {
             document.getElementById('confirmationModalTitle').textContent = title;
             document.getElementById('confirmationModalMessage').textContent = message;
-            confirmCallback = onConfirm; // Assign the callback directly
+            confirmCallback = onConfirm; 
             document.getElementById('confirmationModal').classList.add('active');
-            // Assign click listener to the button here to ensure it uses the latest confirmCallback
             document.getElementById('confirmActionButton').onclick = () => {
                 if (confirmCallback) {
                     confirmCallback();
@@ -775,13 +828,16 @@
 
         function closeConfirmationModal() {
             document.getElementById('confirmationModal').classList.remove('active');
-            confirmCallback = null; // Clear callback after use
+            confirmCallback = null; 
         }
-
 
         // --- Initial Load ---
         window.onload = () => {
-            showHomePage(); 
+            // Try to load and resume an in-progress game first
+            if (!loadAndResumeGameInProgress()) {
+                // If no game was resumed, show the home page
+                showHomePage();
+            }
         };
 
     </script>
