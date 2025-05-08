@@ -88,6 +88,7 @@
                         <input type="text" id="newPlayerName" placeholder="输入玩家姓名" class="flex-grow p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none">
                         <button onclick="createPlayer()" class="bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-150">创建</button>
                     </div>
+                     <p id="createPlayerError" class="text-red-500 text-sm mt-1"></p>
                 </div>
 
                 <div class="mb-6">
@@ -101,6 +102,7 @@
                     <div id="selectedPlayersForGame" class="flex flex-wrap gap-2 mb-6">
                         </div>
                     <button onclick="startGameWithSelectedPlayers()" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg text-lg transition duration-150 disabled:bg-slate-300" id="confirmStartGameButton" disabled>开始游戏 (0/4)</button>
+                     <p id="startGameError" class="text-red-500 text-sm mt-1 text-center"></p>
                 </div>
             </div>
         </div>
@@ -116,8 +118,8 @@
                     </div>
                 <div id="scoreInputRow" class="grid grid-cols-4 gap-2 mb-4">
                     </div>
-                <button onclick="addRound()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg mb-4 transition duration-150">添加此局记录</button>
-                <p id="roundValidationError" class="text-red-500 text-sm mb-4 text-center"></p>
+                <button onclick="addRound()" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold py-3 px-4 rounded-lg mb-2 transition duration-150">添加此局记录</button>
+                <p id="roundValidationError" class="text-red-500 text-sm mb-4 text-center h-5"></p> {/* Added h-5 for consistent height */}
 
                 <div class="mb-4">
                     <h3 class="text-xl font-medium text-slate-600 mb-2">当前局数记分:</h3>
@@ -191,12 +193,40 @@
 
     <script>
         // --- Globals & State ---
-        let players = JSON.parse(localStorage.getItem('mahjongPlayers')) || [];
-        let gameHistory = JSON.parse(localStorage.getItem('mahjongGameHistory')) || [];
-        let currentPlayerSelection = []; // Array of player IDs for the current game selection
+        let players = [];
+        let gameHistory = [];
+
+        // Robust loading from localStorage
+        try {
+            const storedPlayers = localStorage.getItem('mahjongPlayers');
+            if (storedPlayers) {
+                players = JSON.parse(storedPlayers);
+            } else {
+                players = []; 
+            }
+        } catch (e) {
+            console.error("Error parsing mahjongPlayers from localStorage:", e);
+            players = []; 
+            // alert("警告：读取玩家数据时发生错误，部分数据可能已丢失。已恢复为默认状态。"); // Optional: notify user
+        }
+
+        try {
+            const storedGameHistory = localStorage.getItem('mahjongGameHistory');
+            if (storedGameHistory) {
+                gameHistory = JSON.parse(storedGameHistory);
+            } else {
+                gameHistory = [];
+            }
+        } catch (e) {
+            console.error("Error parsing mahjongGameHistory from localStorage:", e);
+            gameHistory = [];
+            // alert("警告：读取历史记录时发生错误，部分数据可能已丢失。已恢复为默认状态。"); // Optional: notify user
+        }
+
+        let currentPlayerSelection = []; 
         let currentGame = {
-            players: [], // {id, name, avatarInitial, currentScore}
-            rounds: [] // Array of arrays, e.g., [[10, -5, -5, 0], ...]
+            players: [], 
+            rounds: [] 
         };
 
         // --- Navigation ---
@@ -205,8 +235,14 @@
             pages.forEach(pid => {
                 document.getElementById(pid).classList.remove('active');
             });
-            document.getElementById(pageId).classList.add('active');
-            window.scrollTo(0, 0); // Scroll to top on page change
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                 targetPage.classList.add('active');
+            } else {
+                console.error("Page not found: " + pageId);
+                document.getElementById('homePage').classList.add('active'); // Fallback to home
+            }
+            window.scrollTo(0, 0);
         }
 
         function showHomePage() { navigateTo('homePage'); }
@@ -215,6 +251,8 @@
             renderExistingPlayers();
             updateSelectedPlayersForGameDisplay();
             updateConfirmStartGameButton();
+            document.getElementById('createPlayerError').textContent = '';
+            document.getElementById('startGameError').textContent = '';
             navigateTo('playerSelectionPage');
         }
         function showGamePage() { navigateTo('gamePage'); }
@@ -232,7 +270,7 @@
         }
 
         // --- Player Management ---
-        function generatePlayerId() { return Date.now().toString(); }
+        function generatePlayerId() { return Date.now().toString() + Math.random().toString(36).substring(2,7); } // Added randomness
 
         function getPlayerAvatarInitial(name) {
             if (!name || name.trim() === "") return "?";
@@ -242,36 +280,41 @@
         function createPlayer() {
             const nameInput = document.getElementById('newPlayerName');
             const name = nameInput.value.trim();
-            if (name) {
-                if (players.find(p => p.name === name)) {
-                    alert('已存在同名玩家！');
-                    return;
-                }
-                const newPlayer = { 
-                    id: generatePlayerId(), 
-                    name: name, 
-                    avatarInitial: getPlayerAvatarInitial(name),
-                    totalWins: 0, // For long-term stats
-                    gamesPlayed: 0 
-                };
-                players.push(newPlayer);
-                savePlayers();
-                renderExistingPlayers();
-                nameInput.value = '';
-            } else {
-                alert('请输入玩家姓名！');
+            const errorElement = document.getElementById('createPlayerError');
+            errorElement.textContent = '';
+
+            if (!name) {
+                errorElement.textContent = '请输入玩家姓名！';
+                return;
             }
+            if (players.find(p => p.name === name)) {
+                errorElement.textContent = '已存在同名玩家！';
+                return;
+            }
+            const newPlayer = { 
+                id: generatePlayerId(), 
+                name: name, 
+                avatarInitial: getPlayerAvatarInitial(name),
+                totalWins: 0, 
+                gamesPlayed: 0 
+            };
+            players.push(newPlayer);
+            savePlayers();
+            renderExistingPlayers();
+            nameInput.value = '';
         }
 
         function deletePlayer(playerId, event) {
-            event.stopPropagation(); // Prevent player selection when clicking delete
+            event.stopPropagation(); 
             
+            const playerToDelete = players.find(p => p.id === playerId);
+            if (!playerToDelete) return;
+
             openConfirmationModal(
                 '删除玩家',
-                `确定要删除玩家 "${players.find(p => p.id === playerId)?.name}" 吗？此操作会影响长期统计，但不会删除历史对局中的该玩家记录。`,
+                `确定要删除玩家 "${playerToDelete.name}" 吗？此操作会影响长期统计，但不会删除历史对局中的该玩家记录。`,
                 () => {
                     players = players.filter(p => p.id !== playerId);
-                    // Remove from current selection if present
                     currentPlayerSelection = currentPlayerSelection.filter(id => id !== playerId);
                     
                     savePlayers();
@@ -285,16 +328,19 @@
         
         function togglePlayerSelection(playerId) {
             const index = currentPlayerSelection.indexOf(playerId);
+            const startGameErrorElement = document.getElementById('startGameError');
+            startGameErrorElement.textContent = '';
+
             if (index > -1) {
                 currentPlayerSelection.splice(index, 1);
             } else {
                 if (currentPlayerSelection.length < 4) {
                     currentPlayerSelection.push(playerId);
                 } else {
-                    alert('最多只能选择4位玩家。');
+                    startGameErrorElement.textContent = '最多只能选择4位玩家。';
                 }
             }
-            renderExistingPlayers(); // Re-render to update selection highlight
+            renderExistingPlayers(); 
             updateSelectedPlayersForGameDisplay();
             updateConfirmStartGameButton();
         }
@@ -324,15 +370,15 @@
         }
         
         function getAvatarColor(id) {
-            // Simple hash function for consistent colors per player
             let hash = 0;
+            if (!id || id.length === 0) return '#60a5fa'; // Default color
             for (let i = 0; i < id.length; i++) {
                 hash = id.charCodeAt(i) + ((hash << 5) - hash);
+                hash = hash & hash; // Convert to 32bit integer
             }
-            const colors = ['#fb7185', '#fdba74', '#d946ef', '#a78bfa', '#22d3ee', '#34d399', '#facc15', '#818cf8']; // Tailwind P3 colors
+            const colors = ['#fb7185', '#fdba74', '#d946ef', '#a78bfa', '#22d3ee', '#34d399', '#facc15', '#818cf8'];
             return colors[Math.abs(hash) % colors.length];
         }
-
 
         function updateSelectedPlayersForGameDisplay() {
             const displayDiv = document.getElementById('selectedPlayersForGame');
@@ -353,7 +399,7 @@
 
         function removePlayerFromSelection(playerId) {
             currentPlayerSelection = currentPlayerSelection.filter(id => id !== playerId);
-            renderExistingPlayers(); // To unhighlight
+            renderExistingPlayers(); 
             updateSelectedPlayersForGameDisplay();
             updateConfirmStartGameButton();
         }
@@ -366,13 +412,16 @@
 
         // --- Game Logic ---
         function startGameWithSelectedPlayers() {
+            const startGameErrorElement = document.getElementById('startGameError');
+            startGameErrorElement.textContent = '';
             if (currentPlayerSelection.length !== 4) {
-                alert('请选择4位玩家开始游戏。');
+                startGameErrorElement.textContent = '请选择4位玩家开始游戏。';
                 return;
             }
             currentGame.players = currentPlayerSelection.map(id => {
                 const player = players.find(p => p.id === id);
-                return { id: player.id, name: player.name, avatarInitial: player.avatarInitial, currentScore: 0 };
+                // Fallback for safety, though player should always be found
+                return { id: player ? player.id : 'unknown', name: player ? player.name : '未知玩家', avatarInitial: player ? player.avatarInitial : '?', currentScore: 0 };
             });
             currentGame.rounds = [];
             document.getElementById('roundValidationError').textContent = '';
@@ -389,70 +438,70 @@
             scoreInputRow.innerHTML = '';
 
             currentGame.players.forEach((player, index) => {
-                // Display player name
                 const playerDiv = document.createElement('div');
                 playerDiv.className = 'font-semibold text-slate-700 truncate px-1';
                 playerDiv.textContent = player.name;
                 playersDisplay.appendChild(playerDiv);
 
-                // Create score input
                 const input = document.createElement('input');
-                input.type = 'number';
+                input.type = 'number'; // Still number for numeric keyboard, but parsing handles non-numbers
                 input.id = `playerScoreInput${index}`;
-                input.placeholder = ""; // Empty placeholder
+                input.placeholder = ""; 
                 input.className = 'w-full p-2 border border-slate-300 rounded-lg text-center focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none';
                 scoreInputRow.appendChild(input);
             });
         }
 
         function addRound() {
-            const scores = [];
-            let sum = 0;
-            let allInputsValid = true;
-            document.getElementById('roundValidationError').textContent = '';
+            const validationErrorElement = document.getElementById('roundValidationError');
+            validationErrorElement.textContent = ''; // Clear previous errors
 
+            // Defensive check for game state
+            if (!currentGame || !currentGame.players || currentGame.players.length !== 4) {
+                console.error("Game state is invalid in addRound.");
+                validationErrorElement.textContent = "发生内部错误：游戏状态无效。请尝试重新开始游戏。";
+                return;
+            }
+
+            const scoreStrings = [];
             for (let i = 0; i < 4; i++) {
-                const input = document.getElementById(`playerScoreInput${i}`);
-                const scoreStr = input.value.trim();
-                if (scoreStr === "") { // Allow empty input, treat as 0 for sum check if others are filled
-                                       // but require all to be filled to proceed.
-                    // If we want to enforce all fields to be filled:
-                    // alert(`请输入玩家 ${currentGame.players[i].name} 的分数。`);
-                    // allInputsValid = false;
-                    // break;
-                    // For now, let's be flexible. If an input is empty, it's not part of the sum for validation,
-                    // but we need a number to store. Let's enforce numbers.
-                    alert(`请输入玩家 ${currentGame.players[i].name} 的分数。`);
-                    document.getElementById('roundValidationError').textContent = `请输入玩家 ${currentGame.players[i].name} 的分数。`;
-                    allInputsValid = false;
+                const inputElement = document.getElementById(`playerScoreInput${i}`);
+                scoreStrings.push(inputElement.value.trim());
+            }
+
+            // 1. Check if any input is empty
+            for (let i = 0; i < 4; i++) {
+                if (scoreStrings[i] === "") {
+                    validationErrorElement.textContent = `请输入玩家 ${currentGame.players[i].name} 的分数。`;
                     return; 
                 }
-                
-                const score = parseInt(scoreStr);
+            }
+
+            // 2. Parse all inputs since none are empty, and check for non-numeric values
+            const scores = [];
+            let sum = 0;
+            for (let i = 0; i < 4; i++) {
+                const score = parseInt(scoreStrings[i]);
                 if (isNaN(score)) {
-                    document.getElementById('roundValidationError').textContent = `玩家 ${currentGame.players[i].name} 的分数无效。`;
-                    allInputsValid = false;
-                    return; // Exit if any score is not a number
+                    validationErrorElement.textContent = `玩家 ${currentGame.players[i].name} 的分数 "${scoreStrings[i]}" 无效，请输入数字。`;
+                    return; 
                 }
                 scores.push(score);
                 sum += score;
             }
 
-            if (!allInputsValid) return; // If any input was invalid (e.g. not a number)
-
+            // 3. Validate sum
             if (sum !== 0) {
-                document.getElementById('roundValidationError').textContent = '当局分数总和必须为0！请检查输入。';
-                return;
+                validationErrorElement.textContent = '当局分数总和必须为0！请检查输入。';
+                return; 
             }
 
-            // Add scores to each player's total for the current game
+            // If all checks pass:
             scores.forEach((score, index) => {
                 currentGame.players[index].currentScore += score;
             });
+            currentGame.rounds.unshift([...scores]); 
 
-            currentGame.rounds.unshift([...scores]); // Add to the beginning for "newest on top"
-
-            // Clear input fields
             for (let i = 0; i < 4; i++) {
                 document.getElementById(`playerScoreInput${i}`).value = '';
             }
@@ -461,9 +510,11 @@
             renderRoundHistory();
         }
 
+
         function renderCurrentRoundTotals() {
             const totalsDiv = document.getElementById('currentRoundTotals');
             totalsDiv.innerHTML = '';
+            if (!currentGame || !currentGame.players) return;
             currentGame.players.forEach(player => {
                 const scoreDiv = document.createElement('div');
                 scoreDiv.textContent = player.currentScore;
@@ -475,6 +526,7 @@
         function showCurrentGameTotals() {
             const modalScoresDiv = document.getElementById('modalCurrentScores');
             modalScoresDiv.innerHTML = '';
+            if (!currentGame || !currentGame.players) return;
             currentGame.players.forEach(player => {
                 const playerTotalDiv = document.createElement('div');
                 playerTotalDiv.className = 'flex justify-between items-center py-2 border-b border-slate-200';
@@ -494,7 +546,7 @@
         function renderRoundHistory() {
             const historyContainer = document.getElementById('roundHistoryContainer');
             historyContainer.innerHTML = '';
-            if (currentGame.rounds.length === 0) {
+            if (!currentGame || !currentGame.rounds || currentGame.rounds.length === 0) {
                 historyContainer.innerHTML = '<p class="text-slate-500 text-center">暂无本场对局记录。</p>';
                 return;
             }
@@ -507,7 +559,7 @@
                 let scoresHTML = `<div class="text-sm font-semibold text-slate-500 mb-1">第 ${roundNumber} 局</div>`;
                 scoresHTML += '<div class="grid grid-cols-4 gap-2 text-sm">';
                 
-                roundScores.forEach((score, playerIndex) => {
+                roundScores.forEach((score) => { // Removed playerIndex as it's not used here
                     scoresHTML += `<div class="${score >= 0 ? 'text-green-500' : 'text-red-500'}">${score}</div>`;
                 });
                 scoresHTML += '</div>';
@@ -519,10 +571,10 @@
         function confirmEndGameEarly() {
              openConfirmationModal(
                 '结束游戏?',
-                '确定要提前结束当前游戏吗？未保存的进度将会丢失。',
+                '确定要提前结束当前游戏吗？未结算的进度将会丢失。',
                 () => {
                     closeConfirmationModal();
-                    showHomePage(); // Or player selection, depending on desired flow
+                    showHomePage(); 
                 }
             );
         }
@@ -531,6 +583,7 @@
         function renderFinalScores() {
             const finalScoresDiv = document.getElementById('finalScores');
             finalScoresDiv.innerHTML = '';
+            if (!currentGame || !currentGame.players) return;
             currentGame.players.forEach(player => {
                 const scoreDiv = document.createElement('div');
                 scoreDiv.className = 'flex justify-between items-center text-xl py-2';
@@ -543,19 +596,22 @@
         }
 
         function finalizeGameAndReturnHome() {
-            // Prepare game data for history
+            if (!currentGame || !currentGame.players || currentGame.players.length === 0) {
+                 console.warn("Finalize called with no current game or players.");
+                 showHomePage(); // Go home anyway
+                 return;
+            }
             const gameToSave = {
                 date: new Date().toISOString(),
                 players: currentGame.players.map(p => ({ id: p.id, name: p.name, score: p.currentScore })),
-                rounds: [...currentGame.rounds].reverse() // Save rounds in chronological order for history
+                rounds: [...currentGame.rounds].reverse() 
             };
-            gameHistory.unshift(gameToSave); // Add to beginning of history
+            gameHistory.unshift(gameToSave); 
 
-            // Update long-term stats for each player
             currentGame.players.forEach(gamePlayer => {
                 const playerInDb = players.find(p => p.id === gamePlayer.id);
                 if (playerInDb) {
-                    playerInDb.totalWins += gamePlayer.currentScore;
+                    playerInDb.totalWins = (playerInDb.totalWins || 0) + gamePlayer.currentScore; // Ensure totalWins is a number
                     playerInDb.gamesPlayed = (playerInDb.gamesPlayed || 0) + 1;
                 }
             });
@@ -563,7 +619,6 @@
             savePlayers();
             saveGameHistory();
             
-            // Reset current game state
             currentGame = { players: [], rounds: [] };
             currentPlayerSelection = [];
 
@@ -592,15 +647,30 @@
                 const formattedDate = `${date.toLocaleDateString('zh-CN')} ${date.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'})}`;
                 
                 let playersHtml = '<div class="mb-2">';
-                game.players.forEach(p => {
-                    playersHtml += `
-                        <div class="flex justify-between items-center text-sm py-0.5">
-                            <span class="text-slate-700">${p.name}</span>
-                            <span class="font-medium ${p.score >= 0 ? 'text-green-600' : 'text-red-600'}">${p.score}</span>
-                        </div>
-                    `;
-                });
+                if (game.players && Array.isArray(game.players)) {
+                    game.players.forEach(p => {
+                        playersHtml += `
+                            <div class="flex justify-between items-center text-sm py-0.5">
+                                <span class="text-slate-700">${p.name || '未知玩家'}</span>
+                                <span class="font-medium ${p.score >= 0 ? 'text-green-600' : 'text-red-600'}">${p.score}</span>
+                            </div>
+                        `;
+                    });
+                }
                 playersHtml += '</div>';
+                
+                let roundsDetailHTML = '<div class="mt-2 space-y-1 pl-2 border-l-2 border-slate-200">';
+                if (game.rounds && Array.isArray(game.rounds)) {
+                     roundsDetailHTML += game.rounds.map((round, i) => `
+                        <div class="text-slate-600">
+                            第 ${i+1} 局: ${Array.isArray(round) ? round.map(s => `<span class="${s >= 0 ? 'text-green-500' : 'text-red-500'}">${s}</span>`).join(' / ') : '数据错误'}
+                        </div>
+                    `).join('');
+                } else {
+                    roundsDetailHTML += '<div class="text-slate-500">无详细局数记录</div>';
+                }
+                roundsDetailHTML += '</div>';
+
 
                 gameDiv.innerHTML = `
                     <div class="flex justify-between items-center mb-2">
@@ -609,14 +679,8 @@
                     </div>
                     ${playersHtml}
                     <details class="text-xs">
-                        <summary class="cursor-pointer text-sky-500 hover:text-sky-700">查看详细局数 (${game.rounds.length} 局)</summary>
-                        <div class="mt-2 space-y-1 pl-2 border-l-2 border-slate-200">
-                            ${game.rounds.map((round, i) => `
-                                <div class="text-slate-600">
-                                    第 ${i+1} 局: ${round.map((s, pi) => `<span class="${s >= 0 ? 'text-green-500' : 'text-red-500'}">${s}</span>`).join(' / ')}
-                                </div>
-                            `).join('')}
-                        </div>
+                        <summary class="cursor-pointer text-sky-500 hover:text-sky-700">查看详细局数 (${game.rounds ? game.rounds.length : 0} 局)</summary>
+                        ${roundsDetailHTML}
                     </details>
                 `;
                 listDiv.appendChild(gameDiv);
@@ -625,9 +689,12 @@
 
         function deleteGameHistory(index, event) {
             event.stopPropagation();
+            const gameToDelete = gameHistory[index];
+            if (!gameToDelete) return;
+
             openConfirmationModal(
                 '删除历史记录',
-                `确定要删除这条对局历史记录吗？此操作不可撤销，但不会影响玩家的长期统计数据（因为统计已在游戏结束时更新）。`,
+                `确定要删除这条对局历史记录吗 (日期: ${new Date(gameToDelete.date).toLocaleDateString('zh-CN')})？此操作不可撤销。注意：这不会自动调整玩家的长期统计数据，因为统计数据是在游戏结束时更新的。如果需要调整长期统计，可能需要手动处理或重置玩家数据。`,
                 () => {
                     gameHistory.splice(index, 1);
                     saveGameHistory();
@@ -644,7 +711,7 @@
             const noStatsMsg = document.getElementById('noStatsMessage');
             listDiv.innerHTML = '';
 
-            const sortedPlayers = [...players].sort((a, b) => b.totalWins - a.totalWins);
+            const sortedPlayers = [...players].sort((a, b) => (b.totalWins || 0) - (a.totalWins || 0));
 
             if (sortedPlayers.length === 0) {
                 noStatsMsg.style.display = 'block';
@@ -658,6 +725,7 @@
             sortedPlayers.forEach(player => {
                 const playerStatDiv = document.createElement('div');
                 playerStatDiv.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow border border-slate-200';
+                const totalWins = player.totalWins || 0; // Default to 0 if undefined
                 playerStatDiv.innerHTML = `
                     <div class="flex items-center gap-3">
                         <div class="avatar" style="background-color: ${getAvatarColor(player.id)}">${player.avatarInitial}</div>
@@ -666,7 +734,7 @@
                             <p class="text-xs text-slate-500">参与对局: ${player.gamesPlayed || 0}</p>
                         </div>
                     </div>
-                    <span class="font-bold text-xl ${player.totalWins >= 0 ? 'text-green-600' : 'text-red-600'}">${player.totalWins}</span>
+                    <span class="font-bold text-xl ${totalWins >= 0 ? 'text-green-600' : 'text-red-600'}">${totalWins}</span>
                 `;
                 listDiv.appendChild(playerStatDiv);
             });
@@ -674,10 +742,20 @@
 
         // --- Data Persistence ---
         function savePlayers() {
-            localStorage.setItem('mahjongPlayers', JSON.stringify(players));
+            try {
+                localStorage.setItem('mahjongPlayers', JSON.stringify(players));
+            } catch (e) {
+                console.error("Error saving players to localStorage:", e);
+                // alert("错误：保存玩家数据失败！部分更改可能未保存。"); // Optional
+            }
         }
         function saveGameHistory() {
-            localStorage.setItem('mahjongGameHistory', JSON.stringify(gameHistory));
+             try {
+                localStorage.setItem('mahjongGameHistory', JSON.stringify(gameHistory));
+            } catch (e) {
+                console.error("Error saving game history to localStorage:", e);
+                // alert("错误：保存历史记录失败！部分更改可能未保存。"); // Optional
+            }
         }
         
         // --- Confirmation Modal ---
@@ -685,22 +763,25 @@
         function openConfirmationModal(title, message, onConfirm) {
             document.getElementById('confirmationModalTitle').textContent = title;
             document.getElementById('confirmationModalMessage').textContent = message;
-            confirmCallback = onConfirm;
+            confirmCallback = onConfirm; // Assign the callback directly
             document.getElementById('confirmationModal').classList.add('active');
+            // Assign click listener to the button here to ensure it uses the latest confirmCallback
             document.getElementById('confirmActionButton').onclick = () => {
-                if (confirmCallback) confirmCallback();
+                if (confirmCallback) {
+                    confirmCallback();
+                }
             };
         }
 
         function closeConfirmationModal() {
             document.getElementById('confirmationModal').classList.remove('active');
-            confirmCallback = null;
+            confirmCallback = null; // Clear callback after use
         }
 
 
         // --- Initial Load ---
         window.onload = () => {
-            showHomePage(); // Start at the home page
+            showHomePage(); 
         };
 
     </script>
